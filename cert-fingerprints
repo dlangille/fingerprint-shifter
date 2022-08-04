@@ -1,0 +1,68 @@
+#!/bin/sh
+
+CERT_SRC="/var/db/acme/certs"
+
+CERT_DST_ROOT="/var/db/certs-for-rsync"
+FINGERPRINT_DIR="${CERT_DST_ROOT}/cert-fingerprints"
+FINGERPRINT_FILE="fingerprints"
+FINGERPRINT_ALGORITHM=sha1
+
+TMP="${CERT_DST_ROOT}/tmp"
+
+CERTS=""
+
+# items below here are not usually altered
+
+CONFIG="/usr/local/etc/anvil/cert-fingerprints.conf"
+
+if [ -f ${CONFIG} ]; then
+  . ${CONFIG}
+fi
+
+BASENAME="/usr/bin/basename"
+CHMOD="/bin/chmod"
+CP="/bin/cp"
+DIFF="/usr/bin/diff"
+LOGGER="/usr/bin/logger -t fingerprint-shifter"
+OPENSSL="/usr/bin/openssl"
+POSTMAP="/usr/local/sbin/postmap"
+SED="/usr/bin/sed"
+
+
+${LOGGER} starting $0
+
+temp_file=$(mktemp)
+
+for cert in ${CERTS}
+do
+  # XXX FINGERPRINT_ALGORITHM needs to be validated and the correct 
+  fingerprint=`${OPENSSL} x509 -noout -fingerprint -${FINGERPRINT_ALGORITHM} -inform pem -in ${CERT_SRC}/${cert}/${cert}.cer | ${SED} 's/^.* Fingerprint=//g'`
+  echo ${fingerprint} ${cert} >> ${temp_file}
+done
+
+DST_FILE="${FINGERPRINT_DIR}/${FINGERPRINT_FILE}"
+if [ -f ${DST_FILE} ]
+then
+  if [ -r ${DST_FILE} ]
+  then
+    diff=`${DIFF} ${temp_file} ${DST_FILE}`
+    if [ "${diff}X" != "X" ]
+    then
+      ${LOGGER} installing ${temp_file} to ${DST_FILE}
+      ${CP} ${temp_file} ${DST_FILE}
+      ${CHMOD} +r ${DST_FILE}
+      ${POSTMAP} ${DST_FILE}
+    else
+      ${LOGGER} fingerprints unchanged. No update will occur.
+    fi
+  else
+    ${LOGGER} FINGERPRINT_FILE is not readable: ${DST_FILE}
+  fi
+else
+  ${LOGGER} FINGERPRINT_FILE does not exist, creating it: ${DST_FILE}
+  ${CP} ${temp_file} ${DST_FILE}
+  ${CHMOD} +r ${DST_FILE}
+  ${POSTMAP} ${DST_FILE}
+fi
+
+${LOGGER} stopping $0
