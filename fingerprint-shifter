@@ -13,7 +13,7 @@ CERTS=""
 
 # items below here are not usually altered
 
-CONFIG="/usr/local/etc/anvil/cert-fingerprints.conf"
+CONFIG="/usr/local/etc/anvil/fingerprint-shifter.conf"
 
 if [ -f ${CONFIG} ]; then
   . ${CONFIG}
